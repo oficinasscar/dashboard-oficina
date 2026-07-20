@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Executivo - Gestão de Serviços Automotivos</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              bg: '#0f172a',
+              card: '#1e293b',
+              border: '#334155',
+              accent: '#3b82f6',
+              success: '#22c55e',
+              warning: '#eab308',
+              danger: '#ef4444'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <!-- PapaParse CDN (CSV Parsing) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+  <!-- Chart.js + Annotation Plugin CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+  </style>
+</head>
+<body class="bg-brand-bg text-slate-100 font-sans min-h-screen flex flex-col antialiased selection:bg-blue-600 selection:text-white">
+
+  <!-- ================= TOPBAR HEADER ================= -->
+  <header class="bg-brand-card border-b border-brand-border sticky top-0 z-50">
+    <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col md:flex-row items-center justify-between gap-4">
+      
+      <!-- Logo / Title -->
+      <div class="flex items-center gap-3">
+        <div class="p-2.5 bg-blue-600/20 text-blue-400 rounded-xl border border-blue-500/30">
+          <i class="ph-bold ph-[#wrench] text-2xl"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-lg leading-none text-white tracking-wide">AutoManager Exec</h1>
+          <p class="text-xs text-slate-400 mt-1">Dashboard de Gestão e Performance Operacional</p>
+        </div>
+      </div>
+
+      <!-- Integration Input & Global Filters -->
+      <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
+        <!-- CSV Input -->
+        <div class="flex items-center bg-slate-900/80 border border-brand-border rounded-lg p-1 flex-1 md:w-80">
+          <input type="text" id="csvUrlInput" placeholder="URL do CSV do Google Sheets..." class="bg-transparent text-xs px-2.5 py-1 text-slate-200 focus:outline-none w-full placeholder-slate-500">
+          <button onclick="loadCustomCsv()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-3 py-1.5 rounded-md transition flex items-center gap-1 shrink-0">
+            <i class="ph-bold ph-arrows-clockwise"></i> Atualizar
+          </button>
+        </div>
+
+        <!-- Filters -->
+        <select id="filterPeriod" onchange="renderActiveTab()" class="bg-slate-900 border border-brand-border text-xs rounded-lg px-3 py-2 text-slate-300 focus:outline-none focus:border-blue-500">
+          <option value="current">Mês Atual (Junho/2026)</option>
+          <option value="previous">Mês Anterior (Maio/2026)</option>
+        </select>
+
+        <select id="filterCategory" onchange="renderActiveTab()" class="bg-slate-900 border border-brand-border text-xs rounded-lg px-3 py-2 text-slate-300 focus:outline-none focus:border-blue-500">
+          <option value="all">Todas Categoria</option>
+          <option value="Motor">Motor</option>
+          <option value="Cambio">Câmbio</option>
+          <option value="Suspensao">Suspensão</option>
+          <option value="Arrefecimento">Arrefecimento</option>
+        </select>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= TABS NAVIGATION ================= -->
+  <nav class="bg-slate-900/50 border-b border-brand-border">
+    <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 flex overflow-x-auto no-scrollbar gap-2 py-2">
+      <button onclick="switchTab('tab1')" id="btn-tab1" class="tab-btn px-4 py-2 rounded-lg text-xs font-medium flex items-center gap-2 border transition whitespace-nowrap bg-blue-600/20 text-blue-400 border-blue-500/40">
+        <i class="ph-bold ph-chart-line-up text-base"></i> 1. Visão Executiva & Financeira
+      </button>
+      <button onclick="switchTab('tab2')" id="btn-tab2" class="tab-btn px-4 py-2 rounded-lg text-xs font-medium flex items-center gap-2 border border-transparent text-slate-400 hover:text-slate-200 transition whitespace-nowrap">
+        <i class="ph-bold ph-shopping-cart text-base"></i> 2. Eficiência Comercial & Vendas
+      </button>
+      <button onclick="switchTab('tab3')" id="btn-tab3" class="tab-btn px-4 py-2 rounded-lg text-xs font-medium flex items-center gap-2 border border-transparent text-slate-400 hover:text-slate-200 transition whitespace-nowrap">
+        <i class="ph-bold ph-users-three text-base"></i> 3. Produtividade & Operação Técnica
+      </button>
+      <button onclick="switchTab('tab4')" id="btn-tab4" class="tab-btn px-4 py-2 rounded-lg text-xs font-medium flex items-center gap-2 border border-transparent text-slate-400 hover:text-slate-200 transition whitespace-nowrap">
+        <i class="ph-bold ph-scales text-base"></i> 4. Gestão Rentabilidade & Margens
+      </button>
+    </div>
+  </nav>
+
+  <!-- ================= MAIN DASHBOARD CONTENT ================= -->
+  <main class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full">
+
+    <!-- SEÇÃO 1: VISÃO EXECUTIVA & FINANCEIRA -->
+    <section id="tab1" class="tab-content space-y-6">
+      <div id="kpis-tab1" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4"></div>
+      
+      <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+        <div class="bg-brand-card p-4 rounded-xl border border-brand-border">
+          <h3 class="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2"><i class="ph-bold ph-chart-bar text-blue-400"></i> Histórico de Faturamento Mês a Mês</h3>
+          <div class="h-64"><canvas id="chartExec1"></canvas></div>
+        </div>
+        <div class="bg-brand-card p-4 rounded-xl border border-brand-border">
+          <h3 class="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2"><i class="ph-bold ph-user-gear text-emerald-400"></i> Receita & Margem M.O.B por Técnico</h3>
+          <div class="h-64"><canvas id="chartExec2"></canvas></div>
+        </div>
+        <div class="bg-brand-card p-4 rounded-xl border border-brand-border">
+          <h3 class="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2"><i class="ph-bold ph-ticket text-indigo-400"></i> Atendimentos e Ticket Médio Técnico</h3>
+          <div class="h-64"><canvas id="chartExec3"></canvas></div>
+        </div>
+        <div class="bg-brand-card p-4 rounded-xl border border-brand-border">
+          <h3 class="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2"><i class="ph-bold ph-percent text-amber-400"></i> Análise de Desconto por Faixa</h3>
+          <div class="h-64"><canvas id="chartExec4"></canvas></div>
+        </div>
+        <div class="bg-brand-card p-4 rounded-xl border border-brand-border lg:col-span-2">
+          <h3 class="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2"><i class="ph-bold ph-trend-down text-rose-400"></i> Evolução Temporal de Prejuízos / Perdas</h3>
+          <div class="h-64"><canvas id="chartExec5"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SEÇÃO 2: EFICIÊNCIA COMERCIAL & VENDAS -->
+    <section id="tab2" class="tab-content hidden space-y-6">
+      <div id="kpis-tab2" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4"></div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="bg-brand-card p-4 rounded-xl border border-brand-border">
+          <h3 class="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2"><i class="ph-bold ph-chart-polar text-blue-400"></i> Pareto de Aprovação por Categoria</h3>
+          <div class="h-64"><canvas id="chartCom1"></canvas></div>
+        </div>
+        <div class="bg-brand-card p-4 rounded-xl border border-brand-border">
+          <h3 class="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2"><i class="ph-bold ph-users text-teal-400"></i> Origem: Novos vs. Recorrentes</h3>
+          <div class="h-64"><canvas id="chartCom2"></canvas></div>
+        </div>
+        <div class="bg-brand-card p-4 rounded-xl border border-brand-border">
+          <h3 class="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2"><i class="ph-bold ph-calendar-blank text-purple-400"></i> Histórico Semestral de Passagens</h3>
+          <div class="h-64"><canvas id="chartCom3"></canvas></div>
+        </div>
+        <div class="bg-brand-card p-4 rounded-xl border border-brand-border">
+          <h3 class="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2"><i class="ph-bold ph-[#shield-check] text-emerald-400"></i> Tipos de Atendimento (Garantias)</h3>
+          <div class="h-64"><canvas id="chartCom4"></canvas></div>
+        </div>
+        <div class="bg-brand-card p-4 rounded-xl border border-brand-border lg:col-span-2">
+          <h3 class="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2"><i class="ph-bold ph-chart-line text-amber-400"></i> Estabilidade Atendimentos p/ Técnico</h3>
+          <div class="h-64"><canvas id="chartCom5"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SEÇÃO 3: PRODUTIVIDADE & OPERAÇÃO TÉCNICA -->
+    <section id="tab3" class="tab-content hidden space-y-6">
+      <div id="kpis-tab3" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4"></div>
+
+      <!-- Tabela Operacional de Desempenho por Técnico -->
+      <div class="bg-brand-card rounded-xl border border-brand-border overflow-hidden p-4">
+        <h3 class="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2"><i class="ph-bold ph-table text-blue-400"></i> Tabela Operacional de Desempenho por Técnico</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr class="bg-slate-900/80 text-slate-400 border-b border-brand-border">
+                <th class="p-3">Técnico</th>
+                <th class="p-3">Faturamento M.O. (R$)</th>
+                <th class="p-3">Meta Faturamento</th>
+                <th class="p-3">Atendimentos Realizados</th>
+                <th class="p-3">Ticket Médio M.O.</th>
+                <th class="p-3 text-center">Status Geral</th>
+              </tr>
+            </thead>
+            <tbody id="tableTecnicos" class="divide-y divide-slate-800 text-slate-300"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-brand-card p-4 rounded-xl border border-brand-border">
+          <h3 class="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2"><i class="ph-bold ph-trophy text-amber-400"></i> Ranking Atendimentos x Ticket Médio</h3>
+          <div class="h-64"><canvas id="chartOp1"></canvas></div>
+        </div>
+        <div class="bg-brand-card p-4 rounded-xl border border-brand-border">
+          <h3 class="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2"><i class="ph-bold ph-warning-circle text-rose-400"></i> Taxa de Retornos e Retrabalhos por Técnico</h3>
+          <div class="h-64"><canvas id="chartOp2"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SEÇÃO 4: GESTÃO RENTABILIDADE E MARGENS -->
+    <section id="tab4" class="tab-content hidden space-y-6">
+      <div id="kpis-tab4" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4"></div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="bg-brand-card p-4 rounded-xl border border-brand-border lg:col-span-2">
+          <h3 class="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2"><i class="ph-bold ph-calculator text-emerald-400"></i> Relação CMV Peças x Lucro Bruto x Markup Médio</h3>
+          <div class="h-72"><canvas id="chartRent1"></canvas></div>
+        </div>
+        <div class="bg-brand-card p-4 rounded-xl border border-brand-border flex flex-col justify-between">
+          <div>
+            <h3 class="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2"><i class="ph-bold ph-receipt text-blue-400"></i> Resumo DRE Operacional de Peças</h3>
+            <div class="space-y-3 text-xs mt-4" id="dreSummary"></div>
+          </div>
+          <div class="mt-4 p-3 bg-slate-900/60 rounded-lg border border-slate-800 text-[11px] text-slate-400">
+            <i class="ph-bold ph-info text-blue-400"></i> DRE focado na performance de revenda de insumos/peças e eficiência de despesas sobre a receita bruta.
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ================= JAVASCRIPT & DATA PROCESSING ================= -->
+  <script>
+    // Global Chart Registry for clear/destroy handling
+    const activeCharts = {};
+
+    // MOCK DATA COMPLETE SETUP
+    const mockData = {
+      executive: {
+        fatTotal: 468000, fatTotalPrev: 442000, fatMeta: 457000,
+        atendTecnico: 39, atendTecnicoMeta: 37,
+        ticketTecnico: 810, ticketTecnicoMeta: 790,
+        descontos: 4.2, descontosMeta: 5.0,
+        prejuizo: 850, prejuizoPrev: 2400, prejuizoMeta: 0,
+        receitaJuros: 12400, pctJuros: 3.8,
+        historicoFat: {
+          meses: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'],
+          pecas: [180000, 195000, 210000, 205000, 220000, 238000],
+          servicos: [190000, 200000, 215000, 210000, 222000, 230000]
+        },
+        faixasDesconto: { 'Até 3%': 84, '4% a 5%': 12, 'Acima 5%': 4 }
+      },
+      comercial: {
+        ticketGeral: 2150, ticketGeralMeta: 2078, ticketGeralPrev: 2010,
+        ticketServ: 810, ticketServMeta: 790,
+        atendimentosTotal: 232, atendimentosMeta: 220, atendimentosPrev: 214,
+        leadTime: 92, leadTimeMeta: 90,
+        taxaRetorno: 3.8, taxaRetornoMeta: 5.0,
+        taxaConversao: 82.5, taxaConversaoMeta: 80.0,
+        pareto: {
+          categorias: ['Motor', 'Câmbio', 'Suspensão', 'Arrefecimento', 'Avaliação'],
+          aprovacao: [88, 82, 85, 78, 92]
+        },
+        origem: { novos: 35, recorrentes: 65 },
+        tipos: { normais: 88, cortesias: 8, garantias: 4 }
+      },
+      tecnicos: [
+        { nome: 'Carlos Silva', fatServ: 32500, atend: 40, ticket: 812.5, retornos: 2.5 },
+        { nome: 'Roberto Alves', fatServ: 30100, atend: 38, ticket: 792.1, retornos: 4.8 },
+        { nome: 'Lucas Mendes', fatServ: 27800, atend: 35, ticket: 794.2, retornos: 6.2 }, // Fora meta
+        { nome: 'André Costa', fatServ: 31200, atend: 39, ticket: 800.0, retornos: 3.1 }
+      ],
+      rentabilidade: {
+        lucroOperacional: 26.5, metaLucro: 25.0,
+        pessoalPct: 7.2, metaPessoal: 7.5,
+        adminPct: 8.4, metaAdmin: 8.8,
+        cmvPecas: 68.2, metaCmv: 70.0,
+        taxasCartao: 2.4,
+        cmvHistorico: [71, 70, 69, 69.5, 68.8, 68.2],
+        markupHistorico: [1.75, 1.82, 1.88, 1.90, 1.95, 2.02]
+      }
+    };
+
+    let currentData = JSON.parse(JSON.stringify(mockData));
+
+    // Initialize Dashboard
+    document.addEventListener("DOMContentLoaded", () => {
+      Chart.register(window['chartjs-plugin-annotation']);
+      renderActiveTab();
+    });
+
+    // Tab Switching System
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('bg-blue-600/20', 'text-blue-400', 'border-blue-500/40');
+        btn.classList.add('border-transparent', 'text-slate-400');
+      });
+
+      document.getElementById(tabId).classList.remove('hidden');
+      const activeBtn = document.getElementById(`btn-${tabId}`);
+      activeBtn.classList.add('bg-blue-600/20', 'text-blue-400', 'border-blue-500/40');
+      activeBtn.classList.remove('border-transparent', 'text-slate-400');
+
+      renderActiveTab();
+    }
+
+    function renderActiveTab() {
+      const activeTab = document.querySelector('.tab-content:not(.hidden)').id;
+
+      if (activeTab === 'tab1') renderTab1();
+      if (activeTab === 'tab2') renderTab2();
+      if (activeTab === 'tab3') renderTab3();
+      if (activeTab === 'tab4') renderTab4();
+    }
+
+    // Helper: KPI Card Generator
+    function createKpiCard(title, val, target, status, momText, isPositiveMoM) {
+      const statusColors = {
+        green: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400',
+        yellow: 'border-amber-500/40 bg-amber-500/10 text-amber-400',
+        red: 'border-rose-500/40 bg-rose-500/10 text-rose-400'
+      };
+
+      const momClass = isPositiveMoM ? 'text-emerald-400' : 'text-rose-400';
+      const momIcon = isPositiveMoM ? 'ph-trend-up' : 'ph-trend-down';
+
+      return `
+        <div class="bg-brand-card border border-brand-border p-4 rounded-xl flex flex-col justify-between shadow-sm hover:border-slate-600 transition">
+          <div>
+            <div class="flex items-center justify-between gap-1 mb-2">
+              <span class="text-[11px] font-medium text-slate-400 uppercase tracking-wider truncate">${title}</span>
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusColors[status]} shrink-0">
+                ${status === 'green' ? 'Meta Atingida' : status === 'yellow' ? 'Atenção' : 'Fora da Meta'}
+              </span>
+            </div>
+            <div class="text-xl font-extrabold text-white tracking-tight">${val}</div>
+          </div>
+          <div class="mt-3 pt-2 border-t border-slate-800 flex items-center justify-between text-[11px]">
+            <span class="text-slate-400">Meta: <strong class="text-slate-200">${target}</strong></span>
+            <span class="${momClass} font-semibold flex items-center gap-0.5">
+              <i class="ph-bold ${momIcon}"></i> ${momText}
+            </span>
+          </div>
+        </div>
+      `;
+    }
+
+    // Chart Renderer Helper
+    function renderChart(id, config) {
+      if (activeCharts[id]) activeCharts[id].destroy();
+      const ctx = document.getElementById(id).getContext('2d');
+      activeCharts[id] = new Chart(ctx, config);
+    }
+
+    // ================= RENDER TAB 1: EXECUTIVE =================
+    function renderTab1() {
+      const d = currentData.executive;
+
+      // KPIs
+      const kpiContainer = document.getElementById('kpis-tab1');
+      kpiContainer.innerHTML = `
+        ${createKpiCard('Faturamento Total', `R$ ${d.fatTotal.toLocaleString('pt-BR')}`, 'R$ 457.000', d.fatTotal >= d.fatMeta ? 'green' : 'red', '+5.8% MoM', true)}
+        ${createKpiCard('Atend./Técnico Mês', `${d.atendTecnico} passagens`, '37 at./técn.', d.atendTecnico >= d.atendTecnicoMeta ? 'green' : 'yellow', '+2.6% MoM', true)}
+        ${createKpiCard('Ticket M.O. / Técnico', `R$ ${d.ticketTecnico}`, 'R$ 790,00', d.ticketTecnico >= d.ticketTecnicoMeta ? 'green' : 'yellow', '+2.5% MoM', true)}
+        ${createKpiCard('Descontos Concedidos', `${d.descontos}%`, '< 5.0%', d.descontos <= d.descontosMeta ? 'green' : 'red', '-0.4% MoM', true)}
+        ${createKpiCard('Prejuízo / Perdas Mês', `R$ ${d.prejuizo}`, 'R$ 0,00', d.prejuizo === 0 ? 'green' : 'yellow', '-64.5% MoM', true)}
+        ${createKpiCard('Receita Juros Cartão', `R$ ${d.receitaJuros.toLocaleString('pt-BR')}`, `${d.pctJuros}% repasse`, 'green', '+1.2% MoM', true)}
+      `;
+
+      // Gráfico 1: Histórico Faturamento
+      renderChart('chartExec1', {
+        type: 'bar',
+        data: {
+          labels: d.historicoFat.meses,
+          datasets: [
+            { label: 'Peças', data: d.historicoFat.pecas, backgroundColor: '#3b82f6' },
+            { label: 'Serviços', data: d.historicoFat.servicos, backgroundColor: '#10b981' }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, grid: { color: '#334155' } } },
+          plugins: { legend: { labels: { color: '#94a3b8' } } }
+        }
+      });
+
+      // Gráfico 2: Receita M.O.B
+      renderChart('chartExec2', {
+        type: 'bar',
+        data: {
+          labels: currentData.tecnicos.map(t => t.nome),
+          datasets: [{ label: 'Faturamento M.O. (R$)', data: currentData.tecnicos.map(t => t.fatServ), backgroundColor: '#6366f1' }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#94a3b8' } },
+            annotation: { annotations: { line1: { type: 'line', yMin: 29000, yMax: 29000, borderColor: '#ef4444', borderWidth: 2, label: { content: 'Meta: R$29k', enabled: true } } } }
+          }
+        }
+      });
+
+      // Gráfico 3: Atendimentos e Ticket Médio
+      renderChart('chartExec3', {
+        type: 'bar',
+        data: {
+          labels: currentData.tecnicos.map(t => t.nome),
+          datasets: [
+            { label: 'Atendimentos', data: currentData.tecnicos.map(t => t.atend), backgroundColor: '#38bdf8' },
+            { label: 'Ticket Médio (R$)', data: currentData.tecnicos.map(t => t.ticket), backgroundColor: '#a855f7' }
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+
+      // Gráfico 4: Descontos
+      renderChart('chartExec4', {
+        type: 'doughnut',
+        data: {
+          labels: Object.keys(d.faixasDesconto),
+          datasets: [{ data: Object.values(d.faixasDesconto), backgroundColor: ['#22c55e', '#eab308', '#ef4444'] }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8' } } } }
+      });
+
+      // Gráfico 5: Prejuízos
+      renderChart('chartExec5', {
+        type: 'line',
+        data: {
+          labels: d.historicoFat.meses,
+          datasets: [{ label: 'Perdas (R$)', data: [4200, 3100, 2800, 2400, 2400, d.prejuizo], borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, tension: 0.3 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+    }
+
+    // ================= RENDER TAB 2: COMERCIAL =================
+    function renderTab2() {
+      const d = currentData.comercial;
+
+      document.getElementById('kpis-tab2').innerHTML = `
+        ${createKpiCard('Ticket Médio Geral', `R$ ${d.ticketGeral}`, 'R$ 2.078', d.ticketGeral >= d.ticketGeralMeta ? 'green' : 'yellow', '+6.9% MoM', true)}
+        ${createKpiCard('Ticket Serv. Mês', `R$ ${d.ticketServ}`, 'R$ 790', d.ticketServ >= d.ticketServMeta ? 'green' : 'yellow', '+2.5% MoM', true)}
+        ${createKpiCard('Atendimentos Total', `${d.atendimentosTotal}`, '220 passagens', d.atendimentosTotal >= d.atendimentosMeta ? 'green' : 'red', '+8.4% MoM', true)}
+        ${createKpiCard('Lead Time (até 2 dias)', `${d.leadTime}%`, '> 90%', d.leadTime >= d.leadTimeMeta ? 'green' : 'yellow', '+1.2% MoM', true)}
+        ${createKpiCard('Índice de Retorno', `${d.taxaRetorno}%`, '< 5.0%', d.taxaRetorno <= d.taxaRetornoMeta ? 'green' : 'red', '-0.5% MoM', true)}
+        ${createKpiCard('Descontos Totais', `4.2%`, '< 5.0%', 'green', '-0.3% MoM', true)}
+        ${createKpiCard('Perdas Operacionais', `R$ 850`, 'R$ 0,00', 'yellow', '-64% MoM', true)}
+        ${createKpiCard('Taxa de Conversão', `${d.taxaConversao}%`, '80.0%', d.taxaConversao >= d.taxaConversaoMeta ? 'green' : 'red', '+3.1% MoM', true)}
+      `;
+
+      renderChart('chartCom1', {
+        type: 'bar',
+        data: { labels: d.pareto.categorias, datasets: [{ label: '% Aprovação', data: d.pareto.aprovacao, backgroundColor: '#3b82f6' }] },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+
+      renderChart('chartCom2', {
+        type: 'pie',
+        data: { labels: ['Novos', 'Recorrentes'], datasets: [{ data: [d.origem.novos, d.origem.recorrentes], backgroundColor: ['#06b6d4', '#10b981'] }] },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+
+      renderChart('chartCom3', {
+        type: 'bar',
+        data: { labels: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'], datasets: [{ label: 'Passagens', data: [195, 202, 210, 208, 214, d.atendimentosTotal], backgroundColor: '#8b5cf6' }] },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+
+      renderChart('chartCom4', {
+        type: 'doughnut',
+        data: { labels: ['Normais', 'Cortesias', 'Garantias'], datasets: [{ data: [d.tipos.normais, d.tipos.cortesias, d.tipos.garantias], backgroundColor: ['#22c55e', '#eab308', '#ef4444'] }] },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+
+      renderChart('chartCom5', {
+        type: 'line',
+        data: {
+          labels: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'],
+          datasets: currentData.tecnicos.map((t, idx) => ({
+            label: t.nome,
+            data: [35 + idx, 36 + idx, 38, 37 + idx, 38, t.atend],
+            borderColor: ['#3b82f6', '#10b981', '#f59e0b', '#ec4899'][idx],
+            tension: 0.2
+          }))
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+    }
+
+    // ================= RENDER TAB 3: OPERAÇÃO TÉCNICA =================
+    function renderTab3() {
+      const c = currentData.comercial;
+
+      document.getElementById('kpis-tab3').innerHTML = `
+        ${createKpiCard('Atendimentos Mês', `${c.atendimentosTotal}`, '220', 'green', '+8.4% MoM', true)}
+        ${createKpiCard('Ticket Médio Geral', `R$ ${c.ticketGeral}`, 'R$ 2.078', 'green', '+6.9% MoM', true)}
+        ${createKpiCard('Ticket Médio Serv.', `R$ ${c.ticketServ}`, 'R$ 790', 'green', '+2.5% MoM', true)}
+        ${createKpiCard('Lead Time (2 dias)', `${c.leadTime}%`, '> 90%', 'green', '+1.2% MoM', true)}
+        ${createKpiCard('Índice Retornos', `${c.taxaRetorno}%`, '< 5.0%', 'green', '-0.5% MoM', true)}
+      `;
+
+      // Render Tabela Tecnicos
+      const tbody = document.getElementById('tableTecnicos');
+      tbody.innerHTML = currentData.tecnicos.map(t => {
+        const fatOk = t.fatServ >= 29000;
+        const atendOk = t.atend >= 37;
+        const ticketOk = t.ticket >= 790;
+        const statusAll = fatOk && atendOk && ticketOk;
+
+        return `
+          <tr class="hover:bg-slate-800/50 transition">
+            <td class="p-3 font-semibold text-white flex items-center gap-2">
+              <div class="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center font-bold text-slate-300 text-[10px]">
+                ${t.nome.split(' ').map(n=>n[0]).join('')}
+              </div>
+              ${t.nome}
+            </td>
+            <td class="p-3 font-mono ${fatOk ? 'text-emerald-400' : 'text-rose-400'}">R$ ${t.fatServ.toLocaleString('pt-BR')}</td>
+            <td class="p-3 text-slate-400">R$ 29.000,00</td>
+            <td class="p-3 font-mono ${atendOk ? 'text-emerald-400' : 'text-amber-400'}">${t.atend} / 37</td>
+            <td class="p-3 font-mono ${ticketOk ? 'text-emerald-400' : 'text-rose-400'}">R$ ${t.ticket}</td>
+            <td class="p-3 text-center">
+              <span class="px-2 py-1 rounded-full text-[10px] font-bold ${statusAll ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}">
+                ${statusAll ? 'Destaque OK' : 'Abaixo da Meta'}
+              </span>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      renderChart('chartOp1', {
+        type: 'bar',
+        data: {
+          labels: currentData.tecnicos.map(t => t.nome),
+          datasets: [{ label: 'Atendimentos', data: currentData.tecnicos.map(t => t.atend), backgroundColor: currentData.tecnicos.map(t => t.atend >= 37 && t.ticket >= 790 ? '#22c55e' : '#3b82f6') }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+
+      renderChart('chartOp2', {
+        type: 'bar',
+        data: {
+          labels: currentData.tecnicos.map(t => t.nome),
+          datasets: [{ label: '% Retornos', data: currentData.tecnicos.map(t => t.retornos), backgroundColor: currentData.tecnicos.map(t => t.retornos > 5.0 ? '#ef4444' : '#22c55e') }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { annotation: { annotations: { line1: { type: 'line', yMin: 5, yMax: 5, borderColor: '#ef4444', borderWidth: 2, label: { content: 'Tolerância Max: 5%', enabled: true } } } } }
+        }
+      });
+    }
+
+    // ================= RENDER TAB 4: RENTABILIDADE =================
+    function renderTab4() {
+      const r = currentData.rentabilidade;
+
+      document.getElementById('kpis-tab4').innerHTML = `
+        ${createKpiCard('Lucro Operacional', `${r.lucroOperacional}%`, '25.0%', r.lucroOperacional >= r.metaLucro ? 'green' : 'yellow', '+1.5% MoM', true)}
+        ${createKpiCard('Desp. Pessoal', `${r.pessoalPct}%`, '< 7.5%', r.pessoalPct <= r.metaPessoal ? 'green' : 'red', '-0.3% MoM', true)}
+        ${createKpiCard('Desp. Admin', `${r.adminPct}%`, '< 8.8%', r.adminPct <= r.metaAdmin ? 'green' : 'red', '-0.4% MoM', true)}
+        ${createKpiCard('CMV Peças', `${r.cmvPecas}%`, '< 70.0%', r.cmvPecas <= r.metaCmv ? 'green' : 'red', '-0.6% MoM', true)}
+        ${createKpiCard('Taxas Cartão', `${r.taxasCartao}%`, 'SDR Médio', 'green', 'Estável', true)}
+      `;
+
+      renderChart('chartRent1', {
+        type: 'bar',
+        data: {
+          labels: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'],
+          datasets: [
+            { type: 'bar', label: 'CMV Peças (%)', data: r.cmvHistorico, backgroundColor: '#f43f5e' },
+            { type: 'line', label: 'Markup Médio', data: r.markupHistorico, borderColor: '#3b82f6', yAxisID: 'y1', tension: 0.2 }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          scales: {
+            y: { title: { display: true, text: 'CMV %' } },
+            y1: { position: 'right', title: { display: true, text: 'Markup' }, grid: { drawOnChartArea: false } }
+          },
+          plugins: {
+            annotation: {
+              annotations: {
+                targetMin: { type: 'line', yMin: 1.8, yMax: 1.8, yScaleID: 'y1', borderColor: '#22c55e', borderWidth: 2, borderDash: [4, 4] },
+                targetMax: { type: 'line', yMin: 2.2, yMax: 2.2, yScaleID: 'y1', borderColor: '#22c55e', borderWidth: 2, borderDash: [4, 4] }
+              }
+            }
+          }
+        }
+      });
+
+      document.getElementById('dreSummary').innerHTML = `
+        <div class="flex justify-between border-b border-slate-800 pb-1.5"><span class="text-slate-400">Faturamento Peças:</span> <strong class="text-white">R$ 238.000,00</strong></div>
+        <div class="flex justify-between border-b border-slate-800 pb-1.5"><span class="text-slate-400">(-) CMV (${r.cmvPecas}%):</span> <strong class="text-rose-400">R$ 162.316,00</strong></div>
+        <div class="flex justify-between border-b border-slate-800 pb-1.5"><span class="text-slate-400">(=) Lucro Bruto Insumos:</span> <strong class="text-emerald-400">R$ 75.684,00</strong></div>
+        <div class="flex justify-between border-b border-slate-800 pb-1.5"><span class="text-slate-400">(-) Despesas Pessoal (${r.pessoalPct}%):</span> <strong class="text-slate-300">R$ 17.136,00</strong></div>
+        <div class="flex justify-between border-b border-slate-800 pb-1.5"><span class="text-slate-400">(-) Despesas Admin (${r.adminPct}%):</span> <strong class="text-slate-300">R$ 19.992,00</strong></div>
+        <div class="flex justify-between pt-1"><span class="text-slate-200 font-bold">(=) Resultado Líquido Peças:</span> <strong class="text-blue-400 font-bold">R$ 38.556,00 (${r.lucroOperacional}%)</strong></div>
+      `;
+    }
+
+    // ================= INTEGRATION: GOOGLE SHEETS CSV =================
+    function loadCustomCsv() {
+      const url = document.getElementById('csvUrlInput').value.trim();
+      if (!url) {
+        alert("Por favor, informe uma URL válida exportada/publicada como CSV do Google Sheets.");
+        return;
+      }
+
+      Papa.parse(url, {
+        download: true,
+        header: true,
+        dynamicTyping: true,
+        complete: function(results) {
+          if (results.data && results.data.length > 0) {
+            parseAndApplyCsvData(results.data);
+            alert("Dados atualizados com sucesso a partir da planilha!");
+          } else {
+            alert("Não foi possível extrair dados válidos da URL fornecida.");
+          }
+        },
+        error: function(err) {
+          alert("Erro ao ler o arquivo CSV: " + err.message);
+        }
+      });
+    }
+
+    function parseAndApplyCsvData(rows) {
+      // Exemplo de Mapeamento Dinâmico de CSV para a estrutura de Mock
+      // O usuário pode estender os campos baseado nas colunas da planilha
+      const firstRow = rows[0];
+      if (firstRow.faturamento_total) currentData.executive.fatTotal = Number(firstRow.faturamento_total);
+      if (firstRow.atendimentos_total) currentData.comercial.atendimentosTotal = Number(firstRow.atendimentos_total);
+
+      renderActiveTab();
+    }
+  </script>
+</body>
+</html>
