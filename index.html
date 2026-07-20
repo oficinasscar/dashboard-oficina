@@ -347,13 +347,11 @@
 
     // Processar dados mapeados do Google Sheets
     function processParsedSheetData(rows) {
-      // Procura por colunas na planilha e atualiza dinamicamente as métricas
       let totalFatServ = 0;
       let totalAtend = 0;
       let tecs = [];
 
       rows.forEach(r => {
-        // Mapeamento flexível das colunas da planilha
         const tecNome = r['Tecnico'] || r['Técnico'] || r['Nome'] || r['tecnico'];
         const fatMO = parseFloat(r['Faturamento MO'] || r['Faturamento M.O.'] || r['Faturamento_MO'] || r['FatServ'] || 0);
         const atend = parseInt(r['Atendimentos'] || r['Atend'] || r['Passagens'] || 0);
@@ -373,7 +371,6 @@
         }
       });
 
-      // Se encontrou dados válidos de técnicos na planilha, atualiza o modelo do Dashboard
       if (tecs.length > 0) {
         currentData.tecnicos = tecs;
         currentData.executive.atendTecnico = Math.round(totalAtend / tecs.length);
@@ -592,23 +589,18 @@
         const fatOk = t.fatServ >= 29000;
         const atendOk = t.atend >= 37;
         const ticketOk = t.ticket >= 790;
-        const statusAll = fatOk && atendOk && ticketOk;
+        const isOk = fatOk && atendOk && ticketOk;
 
         return `
-          <tr class="hover:bg-blue-50/50 transition">
-            <td class="p-3 font-bold text-slate-800 flex items-center gap-2">
-              <div class="w-7 h-7 rounded-full bg-blue-100 text-blue-900 flex items-center justify-center font-black text-[10px]">
-                ${t.nome.split(' ').map(n=>n[0]).join('')}
-              </div>
-              ${t.nome}
-            </td>
-            <td class="p-3 font-mono font-bold ${fatOk ? 'text-emerald-700' : 'text-rose-600'}">R$ ${t.fatServ.toLocaleString('pt-BR')}</td>
+          <tr class="hover:bg-slate-50 transition border-b border-slate-100">
+            <td class="p-3 font-semibold text-slate-800">${t.nome}</td>
+            <td class="p-3 font-bold text-blue-900">R$ ${t.fatServ.toLocaleString('pt-BR')}</td>
             <td class="p-3 text-slate-500">R$ 29.000,00</td>
-            <td class="p-3 font-mono font-bold ${atendOk ? 'text-emerald-700' : 'text-amber-600'}">${t.atend} / 37</td>
-            <td class="p-3 font-mono font-bold ${ticketOk ? 'text-emerald-700' : 'text-rose-600'}">R$ ${t.ticket}</td>
+            <td class="p-3">${t.atend} passagens</td>
+            <td class="p-3">R$ ${t.ticket}</td>
             <td class="p-3 text-center">
-              <span class="px-2 py-1 rounded-full text-[10px] font-bold ${statusAll ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-rose-100 text-rose-800 border border-rose-300'}">
-                ${statusAll ? 'Destaque Meta OK' : 'Abaixo da Meta'}
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${isOk ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
+                ${isOk ? 'Atingiu Meta' : 'Em Acompanhamento'}
               </span>
             </td>
           </tr>
@@ -619,7 +611,10 @@
         type: 'bar',
         data: {
           labels: currentData.tecnicos.map(t => t.nome),
-          datasets: [{ label: 'Atendimentos', data: currentData.tecnicos.map(t => t.atend), backgroundColor: currentData.tecnicos.map(t => t.atend >= 37 && t.ticket >= 790 ? BLUE_PALETTE.darkBlue : BLUE_PALETTE.skyBlue) }]
+          datasets: [
+            { label: 'Atendimentos', data: currentData.tecnicos.map(t => t.atend), backgroundColor: BLUE_PALETTE.mediumBlue },
+            { label: 'Ticket Médio (R$)', data: currentData.tecnicos.map(t => t.ticket), backgroundColor: BLUE_PALETTE.skyBlue }
+          ]
         },
         options: { responsive: true, maintainAspectRatio: false }
       });
@@ -628,60 +623,74 @@
         type: 'bar',
         data: {
           labels: currentData.tecnicos.map(t => t.nome),
-          datasets: [{ label: '% Retornos', data: currentData.tecnicos.map(t => t.retornos), backgroundColor: currentData.tecnicos.map(t => t.retornos > 5.0 ? '#dc2626' : BLUE_PALETTE.mediumBlue) }]
+          datasets: [{ label: '% Retorno', data: currentData.tecnicos.map(t => t.retornos), backgroundColor: currentData.tecnicos.map(t => t.retornos > 5 ? '#dc2626' : BLUE_PALETTE.mediumBlue) }]
         },
         options: {
           responsive: true, maintainAspectRatio: false,
-          plugins: { annotation: { annotations: { line1: { type: 'line', yMin: 5, yMax: 5, borderColor: '#dc2626', borderWidth: 2, label: { content: 'Tolerância Max: 5%', enabled: true } } } } }
+          plugins: {
+            annotation: { annotations: { line1: { type: 'line', yMin: 5, yMax: 5, borderColor: '#dc2626', borderWidth: 2, label: { content: 'Teto: 5.0%', enabled: true } } } }
+          }
         }
       });
     }
 
-    // ================= RENDER TAB 4: RENTABILIDADE =================
+    // ================= RENDER TAB 4: RENTABILIDADE E MARGENS =================
     function renderTab4() {
       const r = currentData.rentabilidade;
 
       document.getElementById('kpis-tab4').innerHTML = `
-        ${createKpiCard('Lucro Operacional', `${r.lucroOperacional}%`, '25.0%', r.lucroOperacional >= r.metaLucro ? 'green' : 'yellow', '+1.5% MoM', true)}
-        ${createKpiCard('Desp. Pessoal', `${r.pessoalPct}%`, '< 7.5%', r.pessoalPct <= r.metaPessoal ? 'green' : 'red', '-0.3% MoM', true)}
-        ${createKpiCard('Desp. Admin', `${r.adminPct}%`, '< 8.8%', r.adminPct <= r.metaAdmin ? 'green' : 'red', '-0.4% MoM', true)}
+        ${createKpiCard('Lucro Operacional', `${r.lucroOperacional}%`, '25.0%', r.lucroOperacional >= r.metaLucro ? 'green' : 'red', '+1.5% MoM', true)}
+        ${createKpiCard('Custo Pessoal', `${r.pessoalPct}%`, '< 7.5%', r.pessoalPct <= r.metaPessoal ? 'green' : 'red', '-0.3% MoM', true)}
+        ${createKpiCard('Despesas Admin.', `${r.adminPct}%`, '< 8.8%', r.adminPct <= r.metaAdmin ? 'green' : 'red', '-0.4% MoM', true)}
         ${createKpiCard('CMV Peças', `${r.cmvPecas}%`, '< 70.0%', r.cmvPecas <= r.metaCmv ? 'green' : 'red', '-0.6% MoM', true)}
-        ${createKpiCard('Taxas Cartão', `${r.taxasCartao}%`, 'SDR Médio', 'green', 'Estável', true)}
+        ${createKpiCard('Taxas Cartão', `${r.taxasCartao}%`, '< 2.5%', 'green', '-0.1% MoM', true)}
       `;
 
       renderChart('chartRent1', {
-        type: 'bar',
+        type: 'line',
         data: {
-          labels: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'],
+          labels: currentData.executive.historicoFat.meses,
           datasets: [
-            { type: 'bar', label: 'CMV Peças (%)', data: r.cmvHistorico, backgroundColor: BLUE_PALETTE.skyBlue },
-            { type: 'line', label: 'Markup Médio', data: r.markupHistorico, borderColor: BLUE_PALETTE.darkBlue, borderWidth: 3, yAxisID: 'y1', tension: 0.2 }
+            { label: 'CMV Peças (%)', data: r.cmvHistorico, borderColor: '#dc2626', backgroundColor: 'transparent', tension: 0.2 },
+            { label: 'Markup Médio (x)', data: r.markupHistorico, borderColor: BLUE_PALETTE.mediumBlue, yAxisID: 'y1', tension: 0.2 }
           ]
         },
         options: {
           responsive: true, maintainAspectRatio: false,
           scales: {
-            y: { title: { display: true, text: 'CMV %' }, grid: { color: '#e2e8f0' } },
-            y1: { position: 'right', title: { display: true, text: 'Markup' }, grid: { drawOnChartArea: false } }
-          },
-          plugins: {
-            annotation: {
-              annotations: {
-                targetMin: { type: 'line', yMin: 1.8, yMax: 1.8, yScaleID: 'y1', borderColor: '#16a34a', borderWidth: 2, borderDash: [4, 4] },
-                targetMax: { type: 'line', yMin: 2.2, yMax: 2.2, yScaleID: 'y1', borderColor: '#16a34a', borderWidth: 2, borderDash: [4, 4] }
-              }
-            }
+            y: { title: { display: true, text: 'CMV (%)' } },
+            y1: { position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Markup (x)' } }
           }
         }
       });
 
-      document.getElementById('dreSummary').innerHTML = `
-        <div class="flex justify-between border-b border-slate-200 pb-1.5"><span class="text-slate-600">Faturamento Peças:</span> <strong class="text-slate-900">R$ 238.000,00</strong></div>
-        <div class="flex justify-between border-b border-slate-200 pb-1.5"><span class="text-slate-600">(-) CMV (${r.cmvPecas}%):</span> <strong class="text-rose-600">R$ 162.316,00</strong></div>
-        <div class="flex justify-between border-b border-slate-200 pb-1.5"><span class="text-slate-600">(=) Lucro Bruto Insumos:</span> <strong class="text-emerald-700 font-bold">R$ 75.684,00</strong></div>
-        <div class="flex justify-between border-b border-slate-200 pb-1.5"><span class="text-slate-600">(-) Despesas Pessoal (${r.pessoalPct}%):</span> <strong class="text-slate-700">R$ 17.136,00</strong></div>
-        <div class="flex justify-between border-b border-slate-200 pb-1.5"><span class="text-slate-600">(-) Despesas Admin (${r.adminPct}%):</span> <strong class="text-slate-700">R$ 19.992,00</strong></div>
-        <div class="flex justify-between pt-1"><span class="text-blue-950 font-bold">(=) Resultado Líquido Peças:</span> <strong class="text-blue-700 font-black text-sm">R$ 38.556,00 (${r.lucroOperacional}%)</strong></div>
+      // DRE Operacional
+      const dreEl = document.getElementById('dreSummary');
+      dreEl.innerHTML = `
+        <div class="flex justify-between items-center py-1.5 border-b border-slate-100 font-semibold">
+          <span>Receita Bruta Peças</span>
+          <span class="text-blue-950">R$ 238.000,00</span>
+        </div>
+        <div class="flex justify-between items-center py-1.5 border-b border-slate-100 text-rose-600">
+          <span>(-) CMV Insumos/Peças (68.2%)</span>
+          <span>- R$ 162.316,00</span>
+        </div>
+        <div class="flex justify-between items-center py-1.5 border-b border-slate-100 font-bold text-slate-800 bg-slate-50 px-2 rounded">
+          <span>(=) Lucro Bruto de Peças</span>
+          <span>R$ 75.684,00</span>
+        </div>
+        <div class="flex justify-between items-center py-1.5 border-b border-slate-100 text-slate-600">
+          <span>(-) Despesas Comerciais e Cartão</span>
+          <span>- R$ 5.712,00</span>
+        </div>
+        <div class="flex justify-between items-center py-1.5 border-b border-slate-100 text-slate-600">
+          <span>(-) Despesas Administrativas Rateadas</span>
+          <span>- R$ 19.992,00</span>
+        </div>
+        <div class="flex justify-between items-center py-2 font-black text-emerald-700 bg-emerald-50 px-2 rounded text-sm mt-2">
+          <span>(=) Margem Operacional Líquida</span>
+          <span>R$ 49.980,00 (21.0%)</span>
+        </div>
       `;
     }
   </script>
